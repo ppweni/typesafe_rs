@@ -1,0 +1,21 @@
+[package]
+name = "type-paranoid"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Trust types. Question traffic. An embedded outbound traffic monitor."
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+crossterm = { version = "0.29", features = ["event-stream"] }
+futures-util = "0.3"
+ratatui = { version = "0.30", default-features = false, features = ["crossterm_0_29", "layout-cache"] }
+etherparse = "0.21"
+pnet_datalink = "0.35"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time", "net"] }
+typesafe_rs = { path = "../.." }
+url = "2"
