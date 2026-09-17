@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "An idiomatic async Rust client for the TypeSafe AI API"
 readme = "README.md"
+license = "MIT"
 
 [workspace]
 members = ["examples/type-paranoid"]

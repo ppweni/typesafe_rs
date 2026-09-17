@@ -3,6 +3,7 @@ name = "type-paranoid"
 version = "0.1.0"
 edition = "2024"
 publish = false
+license = "MIT"
 description = "Trust types. Question traffic. An embedded outbound traffic monitor."
 
 [dependencies]
