@@ -22,13 +22,14 @@ the repository automatically; you do not need to clone it:
 
 ```toml
 [dependencies]
-typesafe_rs = { git = "https://github.com/ppweni/typesafe_rs.git", branch = "main" }
+typesafe_rs = { git = "https://github.com/ppweni/typesafe_rs.git", tag = "v0.2.0" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-For a fixed revision, replace `branch = "main"` with `rev = "<commit SHA>"` or a
-published `tag`. Commit your application's `Cargo.lock` to keep that revision;
-run `cargo update -p typesafe_rs` when you want to update it.
+The tag pins the SDK version. To upgrade, change the tag to the desired release
+and run `cargo update -p typesafe_rs`. Commit your application's `Cargo.lock` to
+retain the resolved dependencies. To pin an exact commit instead, replace
+`tag = "v0.2.0"` with `rev = "<commit SHA>"`.
 
 For development against a local checkout, use
 `typesafe_rs = { path = "../typesafe_rs" }` instead.
@@ -465,7 +466,7 @@ the API contract used as the implementation baseline.
 | Rust SDK | Python SDK baseline | Features |
 | --- | --- | --- |
 | `0.1.0` | `0.6.0` | Text: Noul, Choice, Score |
-| `0.2.0` (tag pending) | `0.7.5` | Text, images, multipart/base64, Box, zstd |
+| `0.2.0` | `0.7.5` | Text, images, multipart/base64, Box, zstd |
 
 | Model ID | Noul / Choice / Score | Images | Box |
 | --- | --- | --- | --- |
