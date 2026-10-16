@@ -51,6 +51,24 @@ pub struct ScoreAnswer {
     pub probabilities: BTreeMap<u32, f64>,
 }
 
+/// Box edges as fractions of image width/height, measured from the top-left.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BoxCoordinates {
+    pub top: f64,
+    pub bottom: f64,
+    pub left: f64,
+    pub right: f64,
+}
+
+/// A single bounding box. An absent target still produces a box: ask a Noul too.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BoxAnswer {
+    #[serde(rename = "box")]
+    pub coordinates: BoxCoordinates,
+    /// The model may return null when confidence is unavailable.
+    pub confidence: Option<f64>,
+}
+
 // Internally tagged enums buffer their fields in Serde before decoding the chosen
 // variant. JSON's usual integer-map-key coercion is lost in that buffer, so parse
 // the wire string keys explicitly, directly into the destination map.
@@ -89,11 +107,19 @@ pub enum Answer {
     Noul(NoulAnswer),
     Choice(ChoiceAnswer),
     Score(ScoreAnswer),
+    Box(BoxAnswer),
     /// Future answer kinds are tolerated; their payload remains in `Response::body`.
     #[serde(other)]
     Unknown,
 }
 impl Answer {
+    pub fn as_box(&self) -> Option<&BoxAnswer> {
+        if let Self::Box(answer) = self {
+            Some(answer)
+        } else {
+            None
+        }
+    }
     pub fn as_noul(&self) -> Option<&NoulAnswer> {
         if let Self::Noul(answer) = self {
             Some(answer)
@@ -130,6 +156,15 @@ pub struct SystemOneResponse {
     pub answers: BTreeMap<String, Answer>,
 }
 impl SystemOneResponse {
+    pub fn box_answer(&self, name: &str) -> Option<&BoxAnswer> {
+        self.answers.get(name)?.as_box()
+    }
+
+    pub fn boxes(&self) -> impl Iterator<Item = (&str, &BoxAnswer)> {
+        self.answers
+            .iter()
+            .filter_map(|(name, answer)| Some((name.as_str(), answer.as_box()?)))
+    }
     pub fn noul(&self, name: &str) -> Option<&NoulAnswer> {
         self.answers.get(name)?.as_noul()
     }

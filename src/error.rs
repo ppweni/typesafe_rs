@@ -16,6 +16,10 @@ pub enum Error {
     InvalidInput(String),
     #[error("could not encode request JSON: {0}")]
     Serialization(#[from] serde_json::Error),
+    #[error("could not read image file: {0}")]
+    AssetRead(#[source] std::io::Error),
+    #[error("could not compress request: {0}")]
+    Compression(#[source] std::io::Error),
     #[error("request timed out: {0}")]
     Timeout(#[source] reqwest::Error),
     #[error("HTTP transport failed: {0}")]
@@ -45,6 +49,8 @@ pub enum ApiErrorKind {
     Authentication,
     PermissionDenied,
     NotFound,
+    PayloadTooLarge,
+    UnsupportedMediaType,
     UnprocessableEntity,
     RateLimit,
     InternalServer,
@@ -65,6 +71,8 @@ impl ApiError {
             401 => ApiErrorKind::Authentication,
             403 => ApiErrorKind::PermissionDenied,
             404 => ApiErrorKind::NotFound,
+            413 => ApiErrorKind::PayloadTooLarge,
+            415 => ApiErrorKind::UnsupportedMediaType,
             422 => ApiErrorKind::UnprocessableEntity,
             429 => ApiErrorKind::RateLimit,
             500..=599 => ApiErrorKind::InternalServer,

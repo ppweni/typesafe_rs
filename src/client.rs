@@ -1,6 +1,5 @@
 use std::{fmt, sync::Arc, time::Duration};
 
-use bytes::Bytes;
 use reqwest::{
     Method, Url,
     header::{self, HeaderMap, HeaderValue},
@@ -10,8 +9,9 @@ use serde_json::{Map, Value};
 use tokio::time::Instant;
 
 use crate::{
-    API_KEY_ENV, ApiError, BASE_URL_ENV, DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_MODEL_ENV,
-    DEFAULT_TIMEOUT, Error, ListModelsResponse, Question, Questions, Response,
+    API_KEY_ENV, ApiError, AssetEncoding, Assets, BASE_URL_ENV, Compression, DEFAULT_BASE_URL,
+    DEFAULT_MODEL, DEFAULT_MODEL_ENV, DEFAULT_TIMEOUT, Error, IMAGES_HEADER, Image,
+    LONG_CONTEXT_HEADER, ListModelsResponse, Question, Questions, Response,
     ResponseValidationError, Result, RetryPolicy, SystemOneResponse,
 };
 
@@ -32,6 +32,7 @@ struct Inner {
     headers: HeaderMap,
     timeout: Duration,
     retry: RetryPolicy,
+    compression: Compression,
 }
 
 impl fmt::Debug for Client {
@@ -62,6 +63,8 @@ impl Client {
             model: None,
             extra_body: Map::new(),
             options: RequestOptions::default(),
+            assets: Assets::new(),
+            asset_encoding: AssetEncoding::default(),
         }
     }
 
@@ -73,7 +76,7 @@ impl Client {
         &self,
         method: Method,
         path: &str,
-        body: Option<Bytes>,
+        body: Option<crate::body::Body>,
         options: RequestOptions,
     ) -> Result<Response<T>> {
         let timeout = options.timeout.unwrap_or(self.inner.timeout);
@@ -93,12 +96,21 @@ impl Client {
         headers.insert(header::USER_AGENT, HeaderValue::from_static(SDK));
         headers.insert("x-typesafe-sdk", HeaderValue::from_static(SDK));
         headers.insert("x-typesafe-runtime", HeaderValue::from_static("rust"));
-        if body.is_some() {
-            headers.insert(
-                header::CONTENT_TYPE,
-                HeaderValue::from_static("application/json"),
-            );
-        }
+        let compression = options.compression.unwrap_or(self.inner.compression);
+        compression.validate()?;
+        // SDK-owned encodings cannot be spoofed by request/client header overrides.
+        headers.remove(header::CONTENT_ENCODING);
+        let body = if let Some(body) = body {
+            headers.insert(header::CONTENT_TYPE, body.content_type);
+            let (bytes, compressed) = compression.encode(body.bytes)?;
+            crate::body::check_size(bytes.len())?;
+            if compressed {
+                headers.insert(header::CONTENT_ENCODING, HeaderValue::from_static("zstd"));
+            }
+            Some(bytes)
+        } else {
+            None
+        };
 
         let started = Instant::now();
         let mut attempt = 0;
@@ -154,6 +166,7 @@ pub struct ClientBuilder {
     timeout: Option<Duration>,
     retry: RetryPolicy,
     http_client: Option<reqwest::Client>,
+    compression: Compression,
 }
 
 impl fmt::Debug for ClientBuilder {
@@ -163,6 +176,20 @@ impl fmt::Debug for ClientBuilder {
 }
 
 impl ClientBuilder {
+    /// Enable experimental images and Box questions by default for this client.
+    pub fn images(mut self, enabled: bool) -> Self {
+        set_feature(&mut self.headers, IMAGES_HEADER, enabled);
+        self
+    }
+    /// Enable the experimental 262k context limit by default for this client.
+    pub fn long_context(mut self, enabled: bool) -> Self {
+        set_feature(&mut self.headers, LONG_CONTEXT_HEADER, enabled);
+        self
+    }
+    pub fn compression(mut self, compression: Compression) -> Self {
+        self.compression = compression;
+        self
+    }
     pub fn api_key(mut self, api_key: impl Into<String>) -> Self {
         self.api_key = Some(api_key.into());
         self
@@ -197,8 +224,14 @@ impl ClientBuilder {
 
     pub fn build(self) -> Result<Client> {
         let api_key = resolve(self.api_key, API_KEY_ENV, None)
+            .map(|key| key.trim().to_owned())
             .filter(|key| !key.trim().is_empty())
             .ok_or_else(|| Error::Configuration(format!("pass an API key or set {API_KEY_ENV}")))?;
+        if !api_key.bytes().all(|byte| byte.is_ascii_graphic()) {
+            return Err(Error::Configuration(
+                "API key must contain printable ASCII without whitespace".into(),
+            ));
+        }
         let mut authorization = HeaderValue::from_str(&format!("Bearer {api_key}"))
             .map_err(|_| Error::Configuration("API key is not a valid HTTP header value".into()))?;
         authorization.set_sensitive(true);
@@ -228,6 +261,7 @@ impl ClientBuilder {
         let timeout = self.timeout.unwrap_or(DEFAULT_TIMEOUT);
         validate_timeout(timeout)?;
         self.retry.validate()?;
+        self.compression.validate()?;
         let http = match self.http_client {
             Some(client) => client,
             None => reqwest::Client::builder()
@@ -243,6 +277,7 @@ impl ClientBuilder {
                 headers: self.headers,
                 timeout,
                 retry: self.retry,
+                compression: self.compression,
             }),
         })
     }
@@ -253,6 +288,7 @@ struct RequestOptions {
     timeout: Option<Duration>,
     retry: Option<RetryPolicy>,
     headers: HeaderMap,
+    compression: Option<Compression>,
 }
 
 #[must_use = "requests are only executed by send().await"]
@@ -263,9 +299,42 @@ pub struct SystemOneRequest<'a, S> {
     model: Option<String>,
     extra_body: Map<String, Value>,
     options: RequestOptions,
+    assets: Assets,
+    asset_encoding: AssetEncoding,
 }
 
 impl<S: Serialize> SystemOneRequest<'_, S> {
+    /// Register an image under its own stable reference. Repeated registration is deduplicated.
+    pub fn asset(mut self, image: Image) -> Self {
+        self.assets.insert(image.reference().to_owned(), image);
+        self
+    }
+    /// Register images under explicit references used in your content.
+    pub fn assets<I, N>(mut self, assets: I) -> Self
+    where
+        I: IntoIterator<Item = (N, Image)>,
+        N: Into<String>,
+    {
+        self.assets
+            .extend(assets.into_iter().map(|(name, image)| (name.into(), image)));
+        self
+    }
+    pub fn asset_encoding(mut self, encoding: AssetEncoding) -> Self {
+        self.asset_encoding = encoding;
+        self
+    }
+    pub fn images(mut self, enabled: bool) -> Self {
+        set_feature(&mut self.options.headers, IMAGES_HEADER, enabled);
+        self
+    }
+    pub fn long_context(mut self, enabled: bool) -> Self {
+        set_feature(&mut self.options.headers, LONG_CONTEXT_HEADER, enabled);
+        self
+    }
+    pub fn compression(mut self, compression: Compression) -> Self {
+        self.options.compression = Some(compression);
+        self
+    }
     pub fn question(mut self, name: impl Into<String>, question: impl Into<Question>) -> Self {
         self.questions.insert(name.into(), question.into());
         self
@@ -308,13 +377,23 @@ impl<S: Serialize> SystemOneRequest<'_, S> {
     }
 
     pub async fn send(self) -> Result<Response<SystemOneResponse>> {
+        self.send_as().await
+    }
+
+    /// Decode the response into an application-defined Serde type. HTTP metadata is retained.
+    /// A schema mismatch reports the field path and is never retried.
+    pub async fn send_as<T: DeserializeOwned>(self) -> Result<Response<T>> {
         if self.questions.is_empty() {
             return Err(Error::InvalidInput(
                 "at least one question is required".into(),
             ));
         }
-        for (name, question) in &self.questions {
-            question.validate(name)?;
+        let questions = serde_json::to_value(self.questions)?;
+        for (name, question) in questions
+            .as_object()
+            .expect("questions serialize as an object")
+        {
+            crate::question::validate_question(question, name)?;
         }
         let state = serde_json::to_value(self.state)?;
         if !matches!(state, Value::String(_) | Value::Object(_) | Value::Array(_)) {
@@ -322,40 +401,22 @@ impl<S: Serialize> SystemOneRequest<'_, S> {
                 "state must be text, an object, or an array".into(),
             ));
         }
+        crate::body::validate_depth(&state)?;
         let model = self.model.as_deref().unwrap_or(&self.client.inner.model);
         if model.trim().is_empty() {
             return Err(Error::InvalidInput("model must not be empty".into()));
         }
 
-        #[derive(Serialize)]
-        struct Payload<'a> {
-            state: Value,
-            model: &'a str,
-            questions: Questions,
-        }
-        let payload = Payload {
-            state,
-            model,
-            questions: self.questions,
-        };
-        // Encode directly on the normal path. Materialize a body map only for the
-        // explicit last-write-wins escape hatch. Bytes clones are O(1) on retries.
-        let body = if self.extra_body.is_empty() {
-            serde_json::to_vec(&payload)?
-        } else {
-            let Value::Object(mut body) = serde_json::to_value(payload)? else {
-                unreachable!()
-            };
-            body.extend(self.extra_body);
-            serde_json::to_vec(&body)?
-        };
+        // Move JSON values into the body; don't reserialize/copy a potentially large state.
+        let mut body = Map::from_iter([
+            ("state".into(), state),
+            ("model".into(), Value::String(model.into())),
+            ("questions".into(), questions),
+        ]);
+        body.extend(self.extra_body);
+        let body = crate::body::Body::encode(body, self.assets, self.asset_encoding).await?;
         self.client
-            .send(
-                Method::POST,
-                "v1/systemone",
-                Some(body.into()),
-                self.options,
-            )
+            .send(Method::POST, "v1/systemone", Some(body), self.options)
             .await
     }
 }
@@ -415,6 +476,13 @@ fn validate_timeout(timeout: Duration) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+fn set_feature(headers: &mut HeaderMap, name: &'static str, enabled: bool) {
+    headers.insert(
+        name,
+        HeaderValue::from_static(if enabled { "true" } else { "false" }),
+    );
 }
 
 async fn execute<T: DeserializeOwned>(

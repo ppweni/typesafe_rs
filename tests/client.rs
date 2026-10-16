@@ -1,142 +1,12 @@
-use std::{
-    collections::BTreeMap,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
-    time::Duration,
-};
+use std::time::Duration;
 
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpListener,
-    sync::mpsc,
-    task::{JoinHandle, JoinSet},
-};
 use typesafe_rs::{
     Answer, ApiErrorKind, Choice, Client, Content, Error, Noul, NoulCriteria, Question,
     RetryPolicy, Score, Value, header::HeaderMap, json,
 };
 
-#[derive(Clone)]
-struct Reply {
-    status: u16,
-    body: String,
-    headers: Vec<(String, String)>,
-    body_delay: Duration,
-    disconnect: bool,
-}
-impl Reply {
-    fn json(status: u16, body: Value) -> Self {
-        Self {
-            status,
-            body: body.to_string(),
-            headers: vec![],
-            body_delay: Duration::ZERO,
-            disconnect: false,
-        }
-    }
-    fn header(mut self, name: &str, value: &str) -> Self {
-        self.headers.push((name.into(), value.into()));
-        self
-    }
-}
-
-#[derive(Debug)]
-struct Captured {
-    line: String,
-    headers: BTreeMap<String, String>,
-    body: Vec<u8>,
-}
-
-struct Server {
-    url: String,
-    count: Arc<AtomicUsize>,
-    requests: mpsc::UnboundedReceiver<Captured>,
-    task: JoinHandle<()>,
-}
-impl Drop for Server {
-    fn drop(&mut self) {
-        self.task.abort();
-    }
-}
-impl Server {
-    async fn start(replies: Vec<Reply>) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let url = format!("http://{}", listener.local_addr().unwrap());
-        let count = Arc::new(AtomicUsize::new(0));
-        let seen = count.clone();
-        let (tx, requests) = mpsc::unbounded_channel();
-        let task = tokio::spawn(async move {
-            let mut connections = JoinSet::new();
-            loop {
-                tokio::select! {
-                    accepted = listener.accept() => {
-                        let (mut socket, _) = accepted.unwrap();
-                        let number = seen.fetch_add(1, Ordering::SeqCst);
-                        let reply = replies[number.min(replies.len() - 1)].clone();
-                        let tx = tx.clone();
-                        connections.spawn(async move {
-                            let mut bytes = Vec::new();
-                            let header_end = loop {
-                                let mut chunk = [0; 4096];
-                                let n = socket.read(&mut chunk).await.unwrap();
-                                if n == 0 { return; }
-                                bytes.extend_from_slice(&chunk[..n]);
-                                if let Some(pos) = bytes.windows(4).position(|w| w == b"\r\n\r\n") { break pos + 4; }
-                            };
-                            let text = String::from_utf8(bytes[..header_end].to_vec()).unwrap();
-                            let mut lines = text.lines();
-                            let line = lines.next().unwrap().to_owned();
-                            let headers: BTreeMap<_, _> = lines.filter_map(|line| line.split_once(':'))
-                                .map(|(k, v)| (k.to_lowercase(), v.trim().to_owned())).collect();
-                            let length: usize = headers.get("content-length").map(|v| v.parse().unwrap()).unwrap_or(0);
-                            while bytes.len() < header_end + length {
-                                let mut chunk = [0; 4096];
-                                let n = socket.read(&mut chunk).await.unwrap();
-                                if n == 0 { return; }
-                                bytes.extend_from_slice(&chunk[..n]);
-                            }
-                            let _ = tx.send(Captured { line, headers, body: bytes[header_end..header_end + length].to_vec() });
-                            if reply.disconnect { return; }
-                            let mut response = format!("HTTP/1.1 {} Test\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n", reply.status, reply.body.len());
-                            for (name, value) in reply.headers { response.push_str(&format!("{name}: {value}\r\n")); }
-                            response.push_str("\r\n");
-                            if socket.write_all(response.as_bytes()).await.is_err() { return; }
-                            tokio::time::sleep(reply.body_delay).await;
-                            let _ = socket.write_all(reply.body.as_bytes()).await;
-                        });
-                    }
-                    Some(result) = connections.join_next() => { result.unwrap(); }
-                }
-            }
-        });
-        Self {
-            url,
-            count,
-            requests,
-            task,
-        }
-    }
-    fn client(&self) -> Client {
-        Client::builder()
-            .api_key("test-key")
-            .base_url(&self.url)
-            .model("test-model")
-            .retry(RetryPolicy::disabled())
-            .build()
-            .unwrap()
-    }
-    fn count(&self) -> usize {
-        self.count.load(Ordering::SeqCst)
-    }
-    async fn request(&mut self) -> Captured {
-        tokio::time::timeout(Duration::from_secs(2), self.requests.recv())
-            .await
-            .unwrap()
-            .unwrap()
-    }
-}
+mod common;
+use common::{Reply, Server};
 
 fn models() -> Value {
     json!({"models": [{"name": "jev-latest", "description": "Default model", "release_date": "2026-01-01"}]})
@@ -279,7 +149,7 @@ async fn retries_preserve_body_and_increment_attempt_headers() {
     let response = server
         .client()
         .system_one("hello")
-        .question("billing", Noul::default())
+        .question("billing", Noul::new("Is this true?"))
         .retry(fast_retry())
         .send()
         .await
@@ -337,6 +207,8 @@ async fn api_error_kinds_messages_and_no_retry_for_client_errors() {
         (401, ApiErrorKind::Authentication),
         (403, ApiErrorKind::PermissionDenied),
         (404, ApiErrorKind::NotFound),
+        (413, ApiErrorKind::PayloadTooLarge),
+        (415, ApiErrorKind::UnsupportedMediaType),
         (422, ApiErrorKind::UnprocessableEntity),
         (500, ApiErrorKind::InternalServer),
         (418, ApiErrorKind::Other),
@@ -381,7 +253,7 @@ async fn malformed_success_is_not_retried_and_retains_context() {
     let Error::ResponseValidation(error) = server
         .client()
         .system_one("hello")
-        .question("x", Noul::default())
+        .question("x", Noul::new("Is this true?"))
         .retry(fast_retry())
         .send()
         .await
@@ -429,7 +301,7 @@ async fn validation_happens_before_network_io() {
     assert!(matches!(
         client
             .system_one(42)
-            .question("x", Noul::default())
+            .question("x", Noul::new("Is this true?"))
             .send()
             .await,
         Err(Error::InvalidInput(_))
@@ -495,7 +367,7 @@ async fn per_request_model_raw_questions_and_shallow_body_overrides() {
     );
     client
         .system_one(json!({"old": true}))
-        .question("x", Noul::default())
+        .question("x", Noul::new("Is this true?"))
         .model("override")
         .extra_body(
             json!({"state": {"new": true}, "model": "extra-model", "questions": {}, "extra": null})
