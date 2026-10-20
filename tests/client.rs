@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use typesafe_rs::{
+use typesafers::{
     Answer, ApiErrorKind, Choice, Client, Content, Error, Noul, NoulCriteria, Question,
     RetryPolicy, Score, Value, header::HeaderMap, json,
 };

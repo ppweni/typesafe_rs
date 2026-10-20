@@ -95,7 +95,7 @@ pub async fn run(
 fn report(
     window: Window,
     presentation: &mut Presentation,
-    client: Option<&typesafe_rs::Client>,
+    client: Option<&typesafers::Client>,
     jobs: &mut JoinSet<assess::Batch>,
 ) {
     presentation.window(&window);

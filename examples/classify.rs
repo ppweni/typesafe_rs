@@ -1,7 +1,7 @@
-use typesafe_rs::{Choice, Client, Noul, Score, json};
+use typesafers::{Choice, Client, Noul, Score, json};
 
 #[tokio::main]
-async fn main() -> typesafe_rs::Result<()> {
+async fn main() -> typesafers::Result<()> {
     let client = Client::new()?;
     let response = client
         .system_one(json!({"document": "I was charged twice. Please fix this ASAP."}))

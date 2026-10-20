@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, time::Duration};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Deserialize;
-use typesafe_rs::{
+use typesafers::{
     Answer, AssetEncoding, BoxQuestion, Choice, Client, Compression, Content, Error, IMAGES_HEADER,
     Image, JEV_1_14, LONG_CONTEXT_HEADER, Noul, NoulCriteria, Question, RetryPolicy, Score, Value,
     header::HeaderMap, json,
@@ -404,7 +404,7 @@ async fn feature_headers_and_api_keys_support_client_defaults_and_request_overri
 async fn custom_response_types_keep_metadata_and_schema_errors_are_not_retried() {
     #[derive(Debug, Deserialize)]
     struct Answers {
-        present: typesafe_rs::NoulAnswer,
+        present: typesafers::NoulAnswer,
     }
     #[derive(Debug, Deserialize)]
     struct Typed {

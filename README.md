@@ -1,4 +1,4 @@
-# typesafe_rs
+# typesafers
 
 An async Rust client for [TypeSafe AI's Jev](https://docs.typesafe.ai/): send state
 and typed questions, then branch on structured answers. Built with Tokio, reqwest
@@ -17,22 +17,24 @@ questions, based on the Python SDK 0.7.5 API contract.
 
 ## Installation
 
-Add the Git dependency and Tokio to your application's `Cargo.toml`. Cargo fetches
-the repository automatically; you do not need to clone it:
+Add the crate and Tokio to your application's `Cargo.toml`:
 
 ```toml
 [dependencies]
-typesafe_rs = { git = "https://github.com/ppweni/typesafe_rs.git", tag = "v0.2.0" }
+typesafers = "0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-The tag pins the SDK version. To upgrade, change the tag to the desired release
-and run `cargo update -p typesafe_rs`. Commit your application's `Cargo.lock` to
-retain the resolved dependencies. To pin an exact commit instead, replace
-`tag = "v0.2.0"` with `rev = "<commit SHA>"`.
+To upgrade, change the version and run
+`cargo update -p typesafers`. Commit your application's `Cargo.lock` to retain
+the resolved dependencies.
 
-For development against a local checkout, use
-`typesafe_rs = { path = "../typesafe_rs" }` instead.
+To track the Git repository instead, use
+`typesafers = { git = "https://github.com/ppweni/typesafers.git", rev = "<commit SHA>" }`.
+Releases tagged `v0.2.0` and earlier predate the rename to `typesafers` and use
+`typesafe_rs = { git = "...", tag = "v0.2.0" }` with `use typesafe_rs::...`. For
+development against a local checkout, use
+`typesafers = { path = "../typesafers" }`.
 
 ## Quick start
 
@@ -54,10 +56,10 @@ For development against a local checkout, use
 3. Put this in `src/main.rs`, then run `cargo run`:
 
 ```no_run
-use typesafe_rs::{Client, Noul};
+use typesafers::{Client, Noul};
 
 #[tokio::main]
-async fn main() -> typesafe_rs::Result<()> {
+async fn main() -> typesafers::Result<()> {
     let client = Client::new()?; // Reads TYPESAFE_API_KEY.
     let response = client
         .system_one("I was charged twice. Please fix this ASAP.")
@@ -92,9 +94,9 @@ Use `Noul` when your code needs a probability for a statement. Choose the thresh
 in your application:
 
 ```no_run
-use typesafe_rs::{Client, Noul};
+use typesafers::{Client, Noul};
 
-# async fn example() -> typesafe_rs::Result<()> {
+# async fn example() -> typesafers::Result<()> {
 let client = Client::new()?;
 let response = client
     .system_one("Checkout is broken for every customer.")
@@ -120,9 +122,9 @@ The labels in `Choice::new` become the possible answers. A Choice needs 1–255
 options; descriptions can be supplied through its public `criteria` map.
 
 ```no_run
-use typesafe_rs::{Choice, Client};
+use typesafers::{Choice, Client};
 
-# async fn example() -> typesafe_rs::Result<()> {
+# async fn example() -> typesafers::Result<()> {
 let client = Client::new()?;
 let response = client
     .system_one("I was charged twice and need a refund.")
@@ -149,9 +151,9 @@ Score levels are ordered from zero. A Score needs 1–10 levels; two or more mak
 useful rubric. The result is a probability-weighted value and can fall between levels.
 
 ```no_run
-use typesafe_rs::{Client, Score};
+use typesafers::{Client, Score};
 
-# async fn example() -> typesafe_rs::Result<()> {
+# async fn example() -> typesafers::Result<()> {
 let client = Client::new()?;
 let response = client
     .system_one("The customer cannot access their account and has a deadline today.")
@@ -180,9 +182,9 @@ Box requires Jev 1.14 and the experimental images header. **Call `.images(true)`
 explicitly:** adding an image or Box question does not turn it on automatically.
 
 ```no_run
-use typesafe_rs::{BoxQuestion, Client, Image, JEV_1_14, Noul, json};
+use typesafers::{BoxQuestion, Client, Image, JEV_1_14, Noul, json};
 
-# async fn example() -> typesafe_rs::Result<()> {
+# async fn example() -> typesafers::Result<()> {
 let client = Client::new()?;
 let photo = Image::from_file("photo.png");
 let response = client
@@ -220,9 +222,9 @@ experimental; see [TypeSafe's image docs](https://docs.typesafe.ai/images).
 Mix question types in the same request; the answers keep the names you assign:
 
 ```no_run
-use typesafe_rs::{Choice, Client, Noul, Score, json};
+use typesafers::{Choice, Client, Noul, Score, json};
 
-# async fn example() -> typesafe_rs::Result<()> {
+# async fn example() -> typesafers::Result<()> {
 let response = Client::new()?
     .system_one(json!({"document": "I was charged twice. Please fix this ASAP."}))
     .question("billing", Noul::new("Is this about billing?"))
@@ -250,9 +252,9 @@ levels. `Question::Raw` supports future question kinds and additional wire field
 Images can come from files, bytes, or base64:
 
 ```no_run
-use typesafe_rs::Image;
+use typesafers::Image;
 
-# fn example(png_bytes: Vec<u8>, base64_text: &str) -> typesafe_rs::Result<()> {
+# fn example(png_bytes: Vec<u8>, base64_text: &str) -> typesafers::Result<()> {
 let from_file = Image::from_file("photo.png");
 let from_bytes = Image::from_bytes(png_bytes)?;
 let from_base64 = Image::from_base64(base64_text)?;
@@ -314,9 +316,9 @@ whitespace. Gateway path prefixes in base URLs are preserved.
 
 ```no_run
 use std::time::Duration;
-use typesafe_rs::{Client, Compression, JEV_1_14, Noul, RetryPolicy};
+use typesafers::{Client, Compression, JEV_1_14, Noul, RetryPolicy};
 
-# async fn example() -> typesafe_rs::Result<()> {
+# async fn example() -> typesafers::Result<()> {
 let client = Client::builder()
     .model(JEV_1_14)
     .timeout(Duration::from_secs(30))
@@ -386,14 +388,14 @@ this example:
 
 ```no_run
 use serde::Deserialize;
-use typesafe_rs::{Client, Noul, NoulAnswer};
+use typesafers::{Client, Noul, NoulAnswer};
 
 #[derive(Deserialize)]
 struct Answers { billing: NoulAnswer }
 #[derive(Deserialize)]
 struct Decision { model: String, answers: Answers }
 
-# async fn example() -> typesafe_rs::Result<()> {
+# async fn example() -> typesafers::Result<()> {
 let response = Client::new()?
     .system_one("I was charged twice.")
     .question("billing", Noul::new("Is this about billing?"))
@@ -412,9 +414,9 @@ field path and original response and are never retried.
 ### Listing models
 
 ```no_run
-use typesafe_rs::Client;
+use typesafers::Client;
 
-# async fn example() -> typesafe_rs::Result<()> {
+# async fn example() -> typesafers::Result<()> {
 let client = Client::new()?;
 for model in &client.models().list().send().await?.models {
     println!("{}: {} ({})", model.name, model.description, model.release_date);
@@ -467,6 +469,7 @@ the API contract used as the implementation baseline.
 | --- | --- | --- |
 | `0.1.0` | `0.6.0` | Text: Noul, Choice, Score |
 | `0.2.0` | `0.7.5` | Text, images, multipart/base64, Box, zstd |
+| `0.3.0` | `0.7.5` | Renamed to `typesafers` (crate and import); published on crates.io |
 
 | Model ID | Noul / Choice / Score | Images | Box |
 | --- | --- | --- | --- |
@@ -488,7 +491,7 @@ The default suite uses local HTTP fixtures and needs no API key:
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
-cargo test -p typesafe_rs --no-default-features
+cargo test -p typesafers --no-default-features
 ```
 
 README Rust examples are also compiled by `cargo test --doc`.
@@ -514,7 +517,7 @@ Live tests use the configured endpoint and make billable inference calls.
 With `cargo-llvm-cov` installed:
 
 ```sh
-cargo llvm-cov -p typesafe_rs --all-features --summary-only
+cargo llvm-cov -p typesafers --all-features --summary-only
 ```
 
 The workspace includes [TypeParanoid](examples/type-paranoid/README.md), a standalone

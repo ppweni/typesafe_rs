@@ -1,11 +1,11 @@
 [package]
-name = "typesafe_rs"
-version = "0.2.0"
+name = "typesafers"
+version = "0.3.0"
 edition = "2024"
 description = "An idiomatic async Rust client for the TypeSafe AI API"
 readme = "README.md"
 license = "MIT"
-repository = "https://github.com/ppweni/typesafe_rs"
+repository = "https://github.com/ppweni/typesafers"
 
 [workspace]
 members = ["examples/type-paranoid"]

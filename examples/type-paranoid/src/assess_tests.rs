@@ -67,8 +67,8 @@ fn server(response: serde_json::Value) -> (Client, thread::JoinHandle<serde_json
         .base_url(format!("http://{address}"))
         .http_client(http)
         // This fixture inspects JSON directly; compression has SDK-level wire tests.
-        .compression(typesafe_rs::Compression::Disabled)
-        .retry(typesafe_rs::RetryPolicy::disabled())
+        .compression(typesafers::Compression::Disabled)
+        .retry(typesafers::RetryPolicy::disabled())
         .build()
         .unwrap();
     (client, task)

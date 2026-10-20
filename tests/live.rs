@@ -5,13 +5,13 @@ use std::time::Duration;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Deserialize;
-use typesafe_rs::{
+use typesafers::{
     AssetEncoding, BoxQuestion, Choice, Client, Image, JEV_1_14, Noul, NoulAnswer, Score,
     SystemOneResponse, Value,
 };
 
 #[cfg(feature = "zstd")]
-use typesafe_rs::Compression;
+use typesafers::Compression;
 
 fn client() -> Client {
     Client::builder()

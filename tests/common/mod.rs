@@ -13,7 +13,7 @@ use tokio::{
     sync::mpsc,
     task::{JoinHandle, JoinSet},
 };
-use typesafe_rs::{Client, RetryPolicy, Value};
+use typesafers::{Client, RetryPolicy, Value};
 
 #[derive(Clone)]
 pub struct Reply {

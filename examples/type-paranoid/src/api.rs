@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use typesafe_rs::Client;
+use typesafers::Client;
 use url::{Host, Url};
 
 /// Pin the SDK to the same addresses excluded by the collector. Disabling proxy
@@ -14,11 +14,11 @@ pub async fn configure(enabled: bool) -> Result<(Option<Client>, HashSet<SocketA
     if !enabled {
         return Ok((None, HashSet::new()));
     }
-    let base = std::env::var(typesafe_rs::BASE_URL_ENV)
+    let base = std::env::var(typesafers::BASE_URL_ENV)
         .ok()
         .map(|v| v.trim().to_owned())
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| typesafe_rs::DEFAULT_BASE_URL.into());
+        .unwrap_or_else(|| typesafers::DEFAULT_BASE_URL.into());
     // Validate SDK configuration before doing network work.
     let _ = Client::builder()
         .base_url(&base)
@@ -37,7 +37,7 @@ pub async fn configure(enabled: bool) -> Result<(Option<Client>, HashSet<SocketA
         .base_url(base)
         .http_client(http.build()?)
         .timeout(Duration::from_secs(10))
-        .retry(typesafe_rs::RetryPolicy {
+        .retry(typesafers::RetryPolicy {
             max_retries: 1,
             ..Default::default()
         })

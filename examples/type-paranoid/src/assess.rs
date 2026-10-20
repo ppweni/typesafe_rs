@@ -2,7 +2,7 @@ use crate::engine::{Peer, Window};
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use serde_json::json;
-use typesafe_rs::{Choice, Client, Score};
+use typesafers::{Choice, Client, Score};
 
 #[derive(Debug, Serialize)]
 pub struct Assessment {
