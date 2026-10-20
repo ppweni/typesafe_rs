@@ -1,0 +1,29 @@
+name: Security audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/Cargo.toml'
+  pull_request:
+    paths:
+      - '**/Cargo.toml'
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC, catches new advisories for unchanged deps
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  checks: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Cargo.lock is not committed, so resolve the current dependency set first.
+      - run: cargo generate-lockfile
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,5 +1,13 @@
 # typesafers
 
+[![crates.io](https://img.shields.io/crates/v/typesafers.svg)](https://crates.io/crates/typesafers)
+[![docs.rs](https://img.shields.io/docsrs/typesafers)](https://docs.rs/typesafers)
+[![CI](https://github.com/ppweni/typesafers/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ppweni/typesafers/actions/workflows/ci.yml)
+[![Security audit](https://github.com/ppweni/typesafers/actions/workflows/audit.yml/badge.svg)](https://github.com/ppweni/typesafers/actions/workflows/audit.yml)
+[![Dependency status](https://deps.rs/repo/github/ppweni/typesafers/status.svg)](https://deps.rs/repo/github/ppweni/typesafers)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ppweni/typesafers/blob/main/LICENSE)
+[![Downloads](https://img.shields.io/crates/d/typesafers.svg)](https://crates.io/crates/typesafers)
+
 An async Rust client for [TypeSafe AI's Jev](https://docs.typesafe.ai/): send state
 and typed questions, then branch on structured answers. Built with Tokio, reqwest
 with Rustls, and Serde. Supports text, image assets, and experimental Jev 1.14 Box
