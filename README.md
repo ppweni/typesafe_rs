@@ -478,6 +478,7 @@ the API contract used as the implementation baseline.
 | `0.1.0` | `0.6.0` | Text: Noul, Choice, Score |
 | `0.2.0` | `0.7.5` | Text, images, multipart/base64, Box, zstd |
 | `0.3.0` | `0.7.5` | Renamed to `typesafers` (crate and import); published on crates.io |
+| `0.3.1` | `0.7.5` | Dependency updates: base64 0.23, zstd 0.14 |
 
 | Model ID | Noul / Choice / Score | Images | Box |
 | --- | --- | --- | --- |
