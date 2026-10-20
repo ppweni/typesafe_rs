@@ -29,7 +29,7 @@ Add the crate and Tokio to your application's `Cargo.toml`:
 
 ```toml
 [dependencies]
-typesafers = "0.3"
+typesafers = "0.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -348,7 +348,13 @@ The client builder also accepts `api_key`, `base_url`, `headers`, and `http_clie
 Both inference and model-list requests accept timeout, retry, and header overrides.
 Inference requests additionally accept model, compression, image assets, and question
 options. A supplied reqwest client can customize proxies, TLS, pooling, and redirects;
-the SDK still applies its own timeout.
+the SDK still applies its own timeout. It must be a reqwest 0.13 client: add
+`reqwest = "0.13"` to your own `Cargo.toml`, or Cargo will pull in a second, incompatible
+reqwest version and `http_client` will not accept it.
+
+The default client uses Rustls with the aws-lc-rs crypto provider and verifies
+certificates against the operating system's trust store, so corporate or custom root
+certificates installed on the machine are honored.
 
 ### Experimental features
 
@@ -479,6 +485,13 @@ the API contract used as the implementation baseline.
 | `0.2.0` | `0.7.5` | Text, images, multipart/base64, Box, zstd |
 | `0.3.0` | `0.7.5` | Renamed to `typesafers` (crate and import); published on crates.io |
 | `0.3.1` | `0.7.5` | Dependency updates: base64 0.23, zstd 0.14 |
+| `0.4.0` | `0.7.5` | reqwest 0.13; OS trust store for TLS |
+
+**Upgrading from 0.3 to 0.4.** The SDK API is unchanged, but `reqwest::Client` (for
+`http_client`) and `reqwest::Error` (inside `Error::Timeout` and `Error::Transport`)
+are now reqwest 0.13 types. If you pass your own client, bump your `reqwest`
+dependency to `0.13`; reqwest 0.13 renamed the `rustls-tls` feature to `rustls`.
+Code that does not name reqwest types needs no changes.
 
 | Model ID | Noul / Choice / Score | Images | Box |
 | --- | --- | --- | --- |
